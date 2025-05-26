@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "513687375255",
+    "project_id": "doanltdd-888c2",
+    "storage_bucket": "doanltdd-888c2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:513687375255:android:c62a4bb5221f2c42aa08d2",
+        "android_client_info": {
+          "package_name": "com.example.ungdungflutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkuw9SPjemJSC3B_6TTKnjzDDngjvhsaM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
