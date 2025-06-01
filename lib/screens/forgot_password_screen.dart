@@ -219,8 +219,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             right: 0,
                             child: Center(
                               child: Container(
-                                width: 96,
-                                height: 96,
+                                width: 90,
+                                height: 90,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   boxShadow: [
