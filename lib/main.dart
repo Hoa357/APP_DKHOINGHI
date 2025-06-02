@@ -63,7 +63,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Ứng dụng hoạt động học thuật CNTT',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primaryColor: const Color.fromARGB(255, 0, 36, 66),
         bottomAppBarTheme: BottomAppBarTheme(
           color: Colors.blue, // Màu nền xanh cho BottomAppBar
           elevation: 8.0, // Thêm chút bóng đổ cho BottomAppBar
