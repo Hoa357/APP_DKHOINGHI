@@ -158,9 +158,12 @@ class _ScanScreenState extends State<ScanScreen> {
 
   Future<void> _processQrCodeAndRecordAttendance(String qrCodeValue) async {
     if (!mounted || _currentUser == null) {
+      _showErrorSnackBar(
+        "Lỗi: Không có người dùng hoặc màn hình không tồn tại.",
+      );
       widget.onScanAndAttendanceCompleted?.call(
         false,
-        qrCodeValue,
+        null,
         "Lỗi: Không có người dùng hoặc màn hình không tồn tại.",
       );
       return;
@@ -171,35 +174,84 @@ class _ScanScreenState extends State<ScanScreen> {
       _scannedEventId = qrCodeValue;
     });
 
-    String eventName =
-        "Sự kiện (ID: $_scannedEventId)"; // Tạm thời, nên lấy từ DB
-
     try {
+      print("Processing QR code: $qrCodeValue");
+      // Phân tích URL từ QR code (định dạng: /check-in?activityId=xxx&token=yyy)
+      final uri = Uri.parse(qrCodeValue);
+      final activityId = uri.queryParameters['activityId'];
+      final token = uri.queryParameters['token'];
+
+      if (activityId == null || token == null) {
+        throw Exception("Định dạng mã QR không hợp lệ.");
+      }
+
+      print("Extracted activityId: $activityId, token: $token");
+      // Lấy thông tin hoạt động từ Firestore
+      final activitySnapshot =
+          await FirebaseFirestore.instance
+              .collection('activities')
+              .doc(activityId)
+              .get();
+      if (!activitySnapshot.exists) {
+        throw Exception("Hoạt động không tồn tại.");
+      }
+
+      final activityData = activitySnapshot.data()!;
+      final qrToken = activityData['qrToken'] as String?;
+      final qrTokenExpires =
+          (activityData['qrTokenExpires'] as Timestamp?)?.toDate();
+
+      if (qrToken == null || qrTokenExpires == null) {
+        throw Exception("Thông tin mã QR không đầy đủ.");
+      }
+
+      print("Fetched qrToken: $qrToken, expires: $qrTokenExpires");
+      // Kiểm tra tính hợp lệ của token
+      if (qrToken != token) {
+        throw Exception("Mã QR không hợp lệ hoặc đã bị thay đổi.");
+      }
+
+      // Kiểm tra thời gian hết hạn (dựa vào qrTokenExpires)
+      final now = DateTime.now(); // 11:45 AM +07, 07/06/2025
+      print("Current time: $now, Expires: $qrTokenExpires");
+      if (now.isAfter(qrTokenExpires)) {
+        _showSnackBar("Mã đã hết hạn.");
+        widget.onScanAndAttendanceCompleted?.call(
+          false,
+          activityId,
+          "Mã đã hết hạn.",
+        );
+        return;
+      }
+
+      // Lấy thông tin sự kiện để lấy eventName
+      final eventName =
+          activityData['title'] as String? ?? "Sự kiện (ID: $activityId)";
+
+      // Ghi điểm danh
       await FirebaseFirestore.instance.collection('attendance_records').add({
         'userId': _currentUser!.uid,
         'userEmail': _currentUser!.email,
-        'eventId': _scannedEventId,
+        'eventId': activityId,
         'eventName': eventName,
         'attendanceTime': Timestamp.now(),
         'status': 'Đã điểm danh',
       });
 
-      if (mounted) {
-        widget.onScanAndAttendanceCompleted?.call(
-          true,
-          _scannedEventId,
-          'Điểm danh thành công cho "$eventName"!',
-        );
-      }
+      _showSnackBar('Điểm danh thành công cho "$eventName"!');
+      widget.onScanAndAttendanceCompleted?.call(
+        true,
+        activityId,
+        'Điểm danh thành công cho "$eventName"!',
+      );
     } catch (e) {
-      print("Lỗi khi ghi điểm danh: $e");
-      if (mounted) {
-        widget.onScanAndAttendanceCompleted?.call(
-          false,
-          _scannedEventId,
-          'Lỗi khi điểm danh. Vui lòng thử lại.',
-        );
-      }
+      print("Error during attendance processing: $e");
+      _showErrorSnackBar('Lỗi khi điểm danh. Vui lòng thử lại.');
+      widget.onScanAndAttendanceCompleted?.call(
+        false,
+        _scannedEventId,
+        'Lỗi khi điểm danh. Vui lòng thử lại.',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -207,6 +259,26 @@ class _ScanScreenState extends State<ScanScreen> {
           _scannedEventId = null;
         });
       }
+    }
+  }
+
+  void _showSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), duration: Duration(seconds: 2)),
+      );
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -225,8 +297,6 @@ class _ScanScreenState extends State<ScanScreen> {
             icon: Icon(Icons.arrow_back),
             onPressed: () {
               _handleUserCancel();
-              // MainPage sẽ xử lý việc chuyển tab dựa trên callback,
-              // không cần Navigator.pop() nếu đây là một tab.
             },
           ),
           actions: [
@@ -332,7 +402,6 @@ class _ScanScreenState extends State<ScanScreen> {
               );
             }
 
-            // Có quyền, hiển thị scanner
             return Stack(
               alignment: Alignment.center,
               children: [
@@ -410,7 +479,7 @@ class _ScanScreenState extends State<ScanScreen> {
                       );
                     },
                   )
-                else // Đang xử lý _isProcessingScan == true
+                else
                   Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
